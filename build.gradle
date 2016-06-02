@@ -1,0 +1,41 @@
+plugins {
+  id 'java'
+  id 'idea'
+  id 'application'
+}
+
+repositories {
+  jcenter()
+}
+
+dependencies {
+    compile group: 'org.apache.httpcomponents', name: 'httpasyncclient', version: '4.0.2'
+    compile group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.3.6'
+    compile group: 'org.apache.httpcomponents', name: 'httpmime', version: '4.3.6'
+    compile group: 'org.json', name: 'json', version: '20140107'
+    compile group: 'com.mashape.unirest', name: 'unirest-java', version: '1.4.9'
+    compile 'com.google.code.gson:gson:2.6.2'
+    compile "com.sparkjava:spark-core:2.5" //add to build.gradle
+    testCompile 'junit:junit:4.12'
+}
+
+sourceCompatibility = '1.8'
+
+mainClassName = 'server.Main'
+
+task wrapper(type: Wrapper) {
+  gradleVersion = '2.12'
+}
+
+task uberjar(type: Jar) {
+    from files(sourceSets.main.output.classesDir)
+    from {configurations.compile.collect {zipTree(it)}} {
+        exclude "META-INF/*.SF"
+        exclude "META-INF/*.DSA"
+        exclude "META-INF/*.RSA"
+    }
+
+    manifest {
+        attributes 'Main-Class': mainClassName
+    }
+}
