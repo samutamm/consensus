@@ -15,7 +15,7 @@ public class Main {
             new Server(portOfCurrentInstance, neighborPorts);
         } else {
             neighborPorts.add(9998);
-            new Server(9999, neighborPorts);
+            new Server(9990, neighborPorts);
         }
     }
 }

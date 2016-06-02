@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import database.Database;
 import database.InMemoryDB;
+import database.TransactionManager;
 import spark.Request;
 import spark.Spark;
 
@@ -29,7 +30,7 @@ public class Server {
         jsonParser = new Gson();
         nodes = neighborPorts;
         replicator = new Replicator(neighborPorts, port);
-        transactions = new ConcurrentHashMap<>();
+        transactions = new TransactionManager();
         Spark.port(port);
         try {
             Thread.sleep(1000);
@@ -47,36 +48,50 @@ public class Server {
             return database.get(key);
         });
 
+        /**
+         * Query to commit from coordinator/master.
+         * Let's prepare the database transaction
+         * and the ack.
+         */
+        put("/query/:id", (req, res) -> {
+            String id = req.params("id");
+            String key = getFromBody(req, "key");
+            String value = getFromBody(req, "value");
+            Function<Database, String> transaction = (database) -> {
+                return database.put(key, value);
+            };
+            transactions.put(id, transaction);
+            return true;
+        });
+
+        /**
+         * Initial request from clients
+         */
         put("/:key", (req, res) -> {
             System.out.println("PUT");
             String key = req.params("key");
             String value = getFromBody(req, "value");
-            String status = getFromBody(req, "status");
-            System.out.println("STATUS: " + status);
-            switch (status) {
-                case "client":
-                    //initial request from client, starts the replication algorithm
-                    long id = System.currentTimeMillis();
-                    int numberOfResponses = replicator.queryToCommit(key, value, id);
-                    System.out.println("NUMBER OF RESPONSES: " + numberOfResponses);
-                    break;
-                case "query":
-                    Function<Database, String> transaction = (database) -> {
-                        return database.put(key, value);
-                    };
-                    String transactionID = getFromBody(req, "id");
-                    transactions.put(transactionID, transaction);
-                    int responsePort = Integer.parseInt(getFromBody(req, "coordinator"));
-                    replicator.sendAckToPort(responsePort, key, value, transactionID);
-                    break;
-                case "commit":
-                    //find transaction by id and commit
-                    break;
-                case "rollback":
-                    //find transaction by id and delete
-                    break;
+            long id = System.currentTimeMillis();
+
+            int numberOfResponses = replicator.queryToCommit(key, value, id);
+            System.out.println("NUMBER OF RESPONSES: " + numberOfResponses);
+            if (numberOfResponses != nodes.size()) {
+                replicator.abortTransaction(id);
+                transactions.remove(id);
+                return false;
             }
-            return false;
+            return true;
+        });
+
+        /**
+         * Coordinator/master decided to abort the
+         * transaction after the vote. Now it should
+         * be aborted also in cohorts/slaves.
+         */
+        post("/abort/:id", (req, res) -> {
+            String id = req.params("id");
+            transactions.remove(id);
+            return true;
         });
 
         delete("/:key", (req, res) -> {

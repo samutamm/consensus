@@ -1,7 +1,6 @@
 package server;
 
 import com.mashape.unirest.http.HttpResponse;
-import com.mashape.unirest.http.JsonNode;
 import com.mashape.unirest.http.Unirest;
 import org.json.JSONObject;
 
@@ -22,17 +21,14 @@ public class Replicator {
     public int queryToCommit(String key, String value, long transactionID) {
         List<Integer> results = nodes.stream().map((port) -> {
             try {
-                String url = baseUrl + port + "/" +  key;
-                String jsonString =
-                        "{\"value\":\"" + value + "\"," +
-                        "\"status\":\"query\"," +
-                        "\"id\":\"" + transactionID + "\","+
-                        "\"coordinator\":\"" + currentPort + "\"}";
-                JSONObject json = new JSONObject(jsonString);
-                HttpResponse<JsonNode> response = Unirest.put(url)
+                String url = baseUrl + port + "/query/" + transactionID;
+                JSONObject json = new JSONObject();
+                json.put("value",value);
+                json.put("key", key);
+                HttpResponse<String> response = Unirest.put(url)
                         .header("Content-Type", "application/json")
                         .body(json)
-                        .asJson();
+                        .asString();
                 if (response.getStatus() == 200) {
                     return 1;
                 }
@@ -42,9 +38,33 @@ public class Replicator {
                 return 0;
             }
         }).collect(Collectors.toList());
-        Integer numberOfSucceccedNodes = results.stream().reduce(0, (a, b) -> {
-            return a + b;
-        });
+        Integer numberOfSucceccedNodes = count(results);
+        return numberOfSucceccedNodes.intValue();
+    }
+
+    private Integer count(List<Integer> results) {
+        return results.stream().reduce(0, (a, b) -> {
+                return a + b;
+            });
+    }
+
+    public int abortTransaction(long id) {
+        List<Integer> results = nodes.stream().map((port) -> {
+            try {
+                String url = baseUrl + port + "/abort/" + id;
+                HttpResponse<String> response = Unirest.post(url)
+                        .header("Content-Type", "application/json")
+                        .asString();
+                if (response.getStatus() == 200) {
+                    return 1;
+                }
+                return 0;
+            } catch (Exception e) {
+                e.printStackTrace();
+                return 0;
+            }
+        }).collect(Collectors.toList());
+        Integer numberOfSucceccedNodes = count(results);
         return numberOfSucceccedNodes.intValue();
     }
 
@@ -52,20 +72,4 @@ public class Replicator {
         return false;
     }
 
-    public void sendAckToPort(int responsePort, String key, String value, String transactionID) {
-        try {
-            String url = baseUrl + responsePort + "/" +  key;
-            JSONObject json = new JSONObject();
-            json.put("value", value);
-            json.put("status", "ack");
-            json.put("id", transactionID);
-            json.put("coordinator", currentPort);
-            Unirest.put(url)
-                    .header("Content-Type", "application/json")
-                    .body(json)
-                    .asJson();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 }
