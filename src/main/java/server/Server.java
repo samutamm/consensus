@@ -109,17 +109,11 @@ public class Server {
             return true;
         });
 
+        /**
+         * TODO
+         */
         delete("/:key", (req, res) -> {
-            System.out.println("delete");
-            String key = req.params("key");
-            String isClient = getFromBody(req, "client");
-            if (isClient.equals("true")) {
-                if (replicator.replicateDelete(key)) {
-                    return database.delete(key);
-                }
-            } else if(isClient.equals("false")) {
-                return database.delete(key);
-            }
+
             return false;
         });
     }

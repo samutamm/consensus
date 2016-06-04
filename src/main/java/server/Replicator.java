@@ -85,13 +85,4 @@ public class Replicator {
                 return a + b;
             });
     }
-
-    /**
-     * TODO
-     */
-    public boolean replicateDelete(String key) {
-        return false;
-    }
-
-
 }
