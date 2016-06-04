@@ -13,7 +13,6 @@ public class Replicator {
 
     private List<Integer> nodes;
     private int currentPort;
-    private String baseUrl = "http://localhost:";
 
     public Replicator(List<Integer> nodes, int port) {
         this.nodes = nodes;
@@ -23,7 +22,8 @@ public class Replicator {
     public int queryToCommit(String key, String value, String transactionID) {
         System.out.println("START QUERY TO COMMIT");
         return forEachNode((port) -> {
-            String url = baseUrl + port + "/query/" + transactionID;
+            String url = Server.URLContract.BASE_URL
+                    + port + "/"+ Server.URLContract.QUERY +"/" + transactionID;
             JSONObject json = new JSONObject();
             json.put("value",value);
             json.put("key", key);
@@ -31,6 +31,32 @@ public class Replicator {
                 return Unirest.put(url)
                         .header("Content-Type", "application/json")
                         .body(json)
+                        .asString();
+            } catch (UnirestException e) {
+                return null;
+            }
+        });
+    }
+
+    public int commitTransaction(String id) {
+        return forEachNode((port) -> {
+            String url = Server.URLContract.BASE_URL + port + "/"+Server.URLContract.COMMIT+"/" + id;
+            try {
+                return Unirest.post(url)
+                        .header("Content-Type", "application/json")
+                        .asString();
+            } catch (UnirestException e) {
+                return null;
+            }
+        });
+    }
+
+    public int abortTransaction(String id) {
+        return forEachNode((port) -> {
+            String url = Server.URLContract.BASE_URL + port + "/" +Server.URLContract.ABORT +"/" + id;
+            try {
+                return Unirest.post(url)
+                        .header("Content-Type", "application/json")
                         .asString();
             } catch (UnirestException e) {
                 return null;
@@ -60,24 +86,12 @@ public class Replicator {
             });
     }
 
-    public int abortTransaction(String id) {
-        return forEachNode((port) -> {
-            String url = baseUrl + port + "/abort/" + id;
-            try {
-                return Unirest.post(url)
-                        .header("Content-Type", "application/json")
-                        .asString();
-            } catch (UnirestException e) {
-                return null;
-            }
-        });
-    }
-
     /**
      * TODO
      */
     public boolean replicateDelete(String key) {
         return false;
     }
+
 
 }

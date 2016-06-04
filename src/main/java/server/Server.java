@@ -20,7 +20,7 @@ public class Server {
     private Gson jsonParser;
     private int port = 4567;
     private Replicator replicator;
-    private ConcurrentHashMap<String, Function> transactions;
+    private ConcurrentHashMap<String, Function<Database, String>> transactions;
 
     private List<Integer> nodes;
 
@@ -53,7 +53,7 @@ public class Server {
          * Let's prepare the database transaction
          * and the ack.
          */
-        put("/query/:id", (req, res) -> {
+        put("/"+ URLContract.QUERY+"/:id", (req, res) -> {
             String id = req.params("id");
             String key = getFromBody(req, "key");
             String value = getFromBody(req, "value");
@@ -82,8 +82,20 @@ public class Server {
                 replicator.abortTransaction(id);
                 transactions.remove(id);
                 return false;
+            } else {
+                replicator.commitTransaction(id);
+                return commitTransaction(id);
             }
-            return true;
+        });
+
+        /**
+         * Coordinator/master decided to commit the
+         * transaction after the vote. Now it should
+         * be committed also in cohorts/slaves.
+         */
+        post("/" + URLContract.COMMIT + "/:id", (req, res)-> {
+            String id = req.params("id");
+            return commitTransaction(id);
         });
 
         /**
@@ -91,7 +103,7 @@ public class Server {
          * transaction after the vote. Now it should
          * be aborted also in cohorts/slaves.
          */
-        post("/abort/:id", (req, res) -> {
+        post("/"+URLContract.ABORT +"/:id", (req, res) -> {
             String id = req.params("id");
             transactions.remove(id);
             return true;
@@ -112,9 +124,23 @@ public class Server {
         });
     }
 
+    private String commitTransaction(String id) {
+        Function<Database, String> trans = transactions.get(id);
+        String returnValue = trans.apply(database);
+        transactions.remove(id);
+        return returnValue;
+    }
+
     private String getFromBody(Request req, String value) {
         String body = req.body();
         JsonObject bodyAsJson = jsonParser.fromJson(body, JsonObject.class);
         return bodyAsJson.get(value).getAsString();
+    }
+
+    public static class URLContract {
+        public static String QUERY = "query";
+        public static String COMMIT = "commit";
+        public static String ABORT = "abort";
+        public static String BASE_URL = "http://localhost:";
     }
 }
