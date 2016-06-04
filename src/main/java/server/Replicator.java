@@ -2,9 +2,11 @@ package server;
 
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
+import com.mashape.unirest.http.exceptions.UnirestException;
 import org.json.JSONObject;
 
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class Replicator {
@@ -18,25 +20,35 @@ public class Replicator {
         this.currentPort = port;
     }
 
-    public int queryToCommit(String key, String value, long transactionID) {
-        List<Integer> results = nodes.stream().map((port) -> {
+    public int queryToCommit(String key, String value, String transactionID) {
+        System.out.println("START QUERY TO COMMIT");
+        return forEachNode((port) -> {
+            String url = baseUrl + port + "/query/" + transactionID;
+            JSONObject json = new JSONObject();
+            json.put("value",value);
+            json.put("key", key);
             try {
-                String url = baseUrl + port + "/query/" + transactionID;
-                JSONObject json = new JSONObject();
-                json.put("value",value);
-                json.put("key", key);
-                HttpResponse<String> response = Unirest.put(url)
+                return Unirest.put(url)
                         .header("Content-Type", "application/json")
                         .body(json)
                         .asString();
-                if (response.getStatus() == 200) {
-                    return 1;
-                }
-                return 0;
-            } catch (Exception e) {
-                e.printStackTrace();
-                return 0;
+            } catch (UnirestException e) {
+                return null;
             }
+        });
+    }
+
+    /**
+     * Executes given function for each node and counts, how many gave 200 OK response.
+     * @param function that creates the request.
+     */
+    private int forEachNode(Function<Integer, HttpResponse<String>> function) {
+        List<Integer> results = nodes.stream().map((port) -> {
+            HttpResponse<String> response = function.apply(port);
+            if (response != null && response.getStatus() == 200) {
+                return 1;
+            }
+            return 0;
         }).collect(Collectors.toList());
         Integer numberOfSucceccedNodes = count(results);
         return numberOfSucceccedNodes.intValue();
@@ -48,26 +60,22 @@ public class Replicator {
             });
     }
 
-    public int abortTransaction(long id) {
-        List<Integer> results = nodes.stream().map((port) -> {
+    public int abortTransaction(String id) {
+        return forEachNode((port) -> {
+            String url = baseUrl + port + "/abort/" + id;
             try {
-                String url = baseUrl + port + "/abort/" + id;
-                HttpResponse<String> response = Unirest.post(url)
+                return Unirest.post(url)
                         .header("Content-Type", "application/json")
                         .asString();
-                if (response.getStatus() == 200) {
-                    return 1;
-                }
-                return 0;
-            } catch (Exception e) {
-                e.printStackTrace();
-                return 0;
+            } catch (UnirestException e) {
+                return null;
             }
-        }).collect(Collectors.toList());
-        Integer numberOfSucceccedNodes = count(results);
-        return numberOfSucceccedNodes.intValue();
+        });
     }
 
+    /**
+     * TODO
+     */
     public boolean replicateDelete(String key) {
         return false;
     }

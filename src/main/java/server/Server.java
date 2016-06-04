@@ -71,8 +71,11 @@ public class Server {
             System.out.println("PUT");
             String key = req.params("key");
             String value = getFromBody(req, "value");
-            long id = System.currentTimeMillis();
-
+            Function<Database, String> transaction = (database) -> {
+                return database.put(key, value);
+            };
+            String id = ""+System.currentTimeMillis();
+            transactions.put(id, transaction);
             int numberOfResponses = replicator.queryToCommit(key, value, id);
             System.out.println("NUMBER OF RESPONSES: " + numberOfResponses);
             if (numberOfResponses != nodes.size()) {
