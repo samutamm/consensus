@@ -9,7 +9,7 @@ Uses [Two-phase commit](https://en.wikipedia.org/wiki/Two-phase_commit_protocol)
 
 Run
 ```
-./gradlew clean build buildjar
+./gradlew clean build uberjar
 ```
 to build project.
 
